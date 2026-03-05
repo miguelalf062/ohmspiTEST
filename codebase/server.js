@@ -250,7 +250,7 @@ io.on('connection', (socket) => {
     currentKp = 0;
     const kpStep = 0.05;
     const maxKp = 10;
-    const setpoint = 100;
+    const setpoint = 90;
 
     while (doZiegler && currentKp <= maxKp) {
       await sendKpToEsp32(currentKp, 0, 0, setpoint);
