@@ -5,7 +5,13 @@
   "main": "index.js",
   "scripts": {
     "devStart": "nodemon server.js",
-    "start": "node server.js"
+    "start": "node server.js",
+    "deploy:pi": "scp -r ./* bulsu@192.168.1.73:~/ohmspi-pid/codebase/",
+    "deploy:piRsync": "rsync -avz --delete --exclude node_modules --exclude .git ./ bulsu@192.168.1.73:~/ohmspi-pid",
+    "deploy:server": "scp server.js bulsu@192.168.1.73:~/ohmspi-pid/codebase/",
+    "deploy:script-4": "scp frontend/script-4.js bulsu@192.168.1.73:~/ohmspi-pid/codebase/frontend/",
+    "deploy:style-4": "scp frontend/style-4.css bulsu@192.168.1.73:~/ohmspi-pid/codebase/frontend/",
+    "deploy:zeigler": "scp frontend/zeigler.html bulsu@192.168.1.73:~/ohmspi-pid/codebase/frontend/"
   },
   "keywords": [],
   "author": "",

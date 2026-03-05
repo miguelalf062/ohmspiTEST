@@ -21,7 +21,7 @@ const con = new Client({
   username: "bulsu",
   port: 5432,
   password: "1234567890...",
-  database: "pidData",
+  database: "piddata",
 });
 con.connect().then(() => console.log("Connected to Database"));
 
@@ -71,13 +71,15 @@ app.post("/api/command", (req, res) => {
 
 // ZIEGLERS NICHOLS TUNING METHOD
 let doZiegler = false;
-let samples = [];
-let peakTimes = [];
-let lastPeak = null;
-let rising = null;
-let peakToPeaks = [];
-let cycleCount = 0;
+let currentKp = 0;
+const MOVEMENT_THRESHOLD = 5.0;  // Arm must move 5° from start to count
+const OSCILLATION_MIN_AMP = 2.0; // Swings must be > 2° to be a real oscillation
+let lastValue = null;
+let isRising = null;
+let peaks = []; // Stores { value, time }
+let troughs = []; // Stores { value, time }
 let znClient = null;
+let startValue = null;
 
 async function sendKpToEsp32(kpValue, ki = 0, kd = 0, setpoint = 100) {
   return new Promise((resolve, reject) => {
@@ -149,6 +151,87 @@ function detectOscillation() {
   return null;
 }
 
+function processZiegler(actualValue, timestamp) {
+  if (startValue === null) startValue = actualValue;
+
+  // 1. Check if the arm has actually lifted yet
+  const traveled = Math.abs(actualValue - startValue);
+  if (traveled < MOVEMENT_THRESHOLD) {
+    return; // Propeller hasn't overcome gravity yet
+  }
+
+  if (lastValue !== null) {
+    if (actualValue > lastValue) {
+      if (isRising === false) {
+        // We just hit a TROUGH (bottom of the swing)
+        troughs.push({ value: lastValue, time: timestamp });
+        if (troughs.length > 5) troughs.shift();
+      }
+      isRising = true;
+    } else if (actualValue < lastValue) {
+      if (isRising === true) {
+        // We just hit a PEAK (top of the swing)
+        peaks.push({ value: lastValue, time: timestamp });
+        if (peaks.length > 5) peaks.shift();
+        
+        console.log(`Peak detected: ${lastValue} at Kp: ${currentKp}`);
+        checkForSustainedOscillation();
+      }
+      isRising = false;
+    }
+  }
+  lastValue = actualValue;
+}
+
+function checkForSustainedOscillation() {
+  if (peaks.length < 3 || troughs.length < 3) return;
+
+  const lastPeak = peaks[peaks.length - 1].value;
+  const prevPeak = peaks[peaks.length - 2].value;
+  const lastTrough = troughs[troughs.length - 1].value;
+  
+  const amplitude = Math.abs(lastPeak - lastTrough);
+  const peakVariation = Math.abs(lastPeak - prevPeak);
+
+  // If amplitude is healthy and peaks are staying at a similar height (within 10%)
+  if (amplitude > OSCILLATION_MIN_AMP && (peakVariation / amplitude) < 0.1) {
+    const Tu = (peaks[peaks.length - 1].time - peaks[peaks.length - 2].time) / 1000; 
+    const Ku = currentKp;
+
+    // Classic Ziegler-Nichols Formulas
+    // const finalKp = 0.6 * Ku;
+    // const finalKi = 1.2 * (finalKp / Tu);
+    // const finalKd = (finalKp * Tu) / 8;
+
+
+/**
+ * ZIEGLER-NICHOLS GAIN CALCULATIONS (Table 2)
+ * Note: These formulas convert Time Constants (Ti, Td) into Controller Gains (Ki, Kd).
+ * We use the Parallel Form of the PID equation as required by the ESP32 firmware.
+ */
+    // Kp = 0.60 * Ku
+    const finalKp = parseFloat((0.60 * Ku).toFixed(3));
+    // Ki = (Kp / Ti) -> (0.60 * Ku) / (0.5 * Tu) = 1.2 * Ku / Tu
+    const finalKi = parseFloat(((1.2 * Ku) / Tu).toFixed(3));
+    // Kd = (Kp * Td) -> (0.60 * Ku) * (0.125 * Tu) = 0.075 * Ku * Tu = 3/40 * Ku * Tu
+    const finalKd = parseFloat(((3 * Ku * Tu) / 40).toFixed(3));
+    console.log(`!!! SUSTAINED OSCILLATION FOUND !!!`);
+    console.log(`Ku: ${Ku}, Tu: ${Tu}s`);
+    console.log(`Calculated -> Kp: ${finalKp}, Ki: ${finalKi}, Kd: ${finalKd}`);
+
+    doZiegler = false; // Stop the loop
+    if (znClient) {
+      znClient.emit('zn-finished', { 
+      kp: finalKp, 
+      ki: finalKi, 
+      kd: finalKd, 
+      Ku: parseFloat(Ku.toFixed(3)), 
+      Tu: parseFloat(Tu.toFixed(3)) 
+  });
+}
+  }
+}
+
 // For receiving MQTT data
 mqttClient.on("message", (topic, message) => {
   try {
@@ -177,49 +260,8 @@ mqttClient.on("message", (topic, message) => {
       });
       io.emit("realtimeData", data);
 
-      if (!doZiegler) return;
-
-      // Push current sample
-      samples.push({ value: data.actualValue, time: data.timestamp });
-
-      const peakData = detectPeak(samples);
-
-      if (peakData && peakData.peak) {
-        // Record peak-to-peak amplitude
-        if (lastPeak) {
-          const P_P = Math.abs(peakData.peak - lastPeak.value);
-          peakToPeaks.push(P_P);
-          if (peakToPeaks.length > 5) peakToPeaks.shift();
-          cycleCount++;
-
-          // Compute Tu (average period)
-          peakTimes.push(peakData.time);
-          let Tu = null;
-          if (peakTimes.length >= 2) {
-            const periods = [];
-            for (let i = 1; i < peakTimes.length; i++) {
-              periods.push(peakTimes[i] - peakTimes[i - 1]);
-            }
-            Tu = periods.reduce((a, b) => a + b, 0) / periods.length;
-          }
-
-          // Emit progress to front-end
-          if (znClient) {
-            znClient.emit('zn-update', { cycle: cycleCount, P_P, sustained: peakToPeaks.length >= 5, Tu, actualValue: data.actualValue, timestamp: data.timestamp });
-          }
-
-          // Stop Ziegler when 5 peaks detected
-          if (peakToPeaks.length >= 5) {
-            doZiegler = false;
-            console.log('Ziegler-Nichols finished!');
-            if (znClient) {
-              znClient.emit('zn-finished', { Ku: currentKp, Tu });
-            }
-          }
-        }
-
-        // Update lastPeak
-        lastPeak = { value: peakData.peak, time: peakData.time };
+      if (doZiegler) {
+        processZiegler(data.actualValue, data.timestamp);
       }
 
     }
@@ -229,37 +271,29 @@ mqttClient.on("message", (topic, message) => {
 });
 
 
-let currentKp = 0;
 
 io.on('connection', (socket) => {
   console.log('Frontend connected:', socket.id);
   znClient = socket;
 
   socket.on('start-zn', async () => {
-    console.log('Starting Ziegler-Nichols measurement');
-
-    // Reset ZN state
+    console.log('Starting ZN sequence...');
     doZiegler = true;
-    samples = [];
-    peakToPeaks = [];
-    peakTimes = [];
-    cycleCount = 0;
-    lastPeak = null;
-    rising = null;
-
-    currentKp = 0;
-    const kpStep = 0.05;
-    const maxKp = 10;
-    const setpoint = 90;
-
-    while (doZiegler && currentKp <= maxKp) {
-      await sendKpToEsp32(currentKp, 0, 0, setpoint);
-      currentKp += kpStep;
-      await new Promise(r => setTimeout(r, 500));
-    }
-
-    if (!doZiegler) {
-      console.log('Ziegler-Nichols done.');
+    currentKp = 0.1; // Start low
+    startValue = null;
+    peaks = [];
+    troughs = [];
+    
+    // Increment Kp until oscillation is found or max reached
+    while (doZiegler && currentKp <= 20) {
+      await sendKpToEsp32(currentKp, 0, 0, 90);
+      io.emit("kp-climb", { currentKp: currentKp.toFixed(2) });
+      console.log(`Testing Kp: ${currentKp.toFixed(2)}`);
+      
+      // WAIT: 2 seconds gives the propeller time to spin up and move
+      await new Promise(r => setTimeout(r, 2000)); 
+      
+      if (doZiegler) currentKp += 0.2; // Step size
     }
   });
 

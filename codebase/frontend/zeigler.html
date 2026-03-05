@@ -3,35 +3,55 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link rel="stylesheet" href="style-4.css" />
-    <script src="script-4.js" defer></script>
-    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <link rel="stylesheet" href="style-3.css" /> <script src="/socket.io/socket.io.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <title>Automatic Tuning</title>
+    <script src="script-4.js" defer></script>
+    <title>Zeigler-Nichols Tuning</title>
   </head>
   <body>
     <div class="container-1">
       <div class="item-1" id="sidebar">
         <div class="container-2">
-          <div class="item-2">
-            <img src="pidTuning.png" alt="Main Logo" id="mainLogo" />
-          </div>
+          <div class="item-2"><img src="pidTuning.png" id="mainLogo" /></div>
           <div class="item-2" id="mainText">PID Tuner Training Module</div>
           <a href="index.html" class="item-2" id="homeButton">Home</a>
           <a href="manual.html" class="item-2" id="manualButton">Manual</a>
           <a href="auto.html" class="item-2" id="autoButton">Auto</a>
-          <a href="zeigler.html" class="item-2" id="zeiglerButton">Zeigler-Nichols</a>
+          <a href="zeigler.html" class="item-2" id="zeiglerButton" style="background-color: #6956e5; color: white;">Zeigler-Nichols</a>
         </div>
       </div>
-      <div class="item-2">
-        <h1 class="zeig-title">Zeigler-Nichols Tuning</h1>
-        <div class="LiveUpdates-Zeig">
-            <div class="item-3">
-                <canvas id="pidChart" width="1000px"></canvas>
+      
+      <div class="item-1" id="main">
+        <div class="container-3">
+          <div class="item-3" id="deviceName">Zeigler-Nichols Auto-Tuning</div>
+          
+          <div class="item-3" id="performanceGraph">
+            <canvas id="pidChart"></canvas>
+          </div>
+
+          <div class="item-3">
+            <div class="container-4">
+              <div class="item-4"><h3>Ku (Ultimate Gain):</h3><h5 id="kuValue">---</h5></div>
+              <div class="item-4"><h3>Tu (Period):</h3><h5 id="tuValue">---</h5></div>
+              <div class="item-4"><h3>Steady State Error:</h3><h5 id="steadyStateErrorValue">0.00</h5></div>
+              <div class="item-4"><h3>Current Kp Climb:</h3><h5 id="kpClimbValue">0.00</h5></div>
+              <div class="item-4"><h3>Status:</h3><h5 id="statusText">Ready</h5></div>
             </div>
+          </div>
+
+          <div class="item-3">
+            <div class="container-4">
+              <div class="item-4" style="background-color: #fee9e3;"><h3>Result Kp:</h3><h5 id="resultKp">---</h5></div>
+              <div class="item-4" style="background-color: #aaa0f0;"><h3>Result Ki:</h3><h5 id="resultKi">---</h5></div>
+              <div class="item-4" style="background-color: #fdc7f3;"><h3>Result Kd:</h3><h5 id="resultKd">---</h5></div>
+            </div>
+          </div>
+
+          
+
+          <button id="start_tuning" style="width: 20vw; height: 8vh; background-color: #61da71; border: none; border-radius: 12px; font-weight: 800; cursor: pointer; margin-top: 10px;">START AUTO-TUNE</button>
         </div>
-        <button id="start_tuning">START</button>
       </div>
     </div>
-      </body>
+  </body>
 </html>
