@@ -57,7 +57,8 @@ body {
 
 #homeButton,
 #manualButton,
-#autoButton {
+#autoButton,
+#zeiglerButton {
   width: 75%;
   height: 4em;
   font-size: 15px;
@@ -73,7 +74,8 @@ body {
 
 #homeButton:active,
 #manualButton:active,
-#autoButton:active {
+#autoButton:active,
+#zeiglerButton:active {
   background-color: #6956e5;
   color: white;
 }
