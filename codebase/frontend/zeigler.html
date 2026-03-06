@@ -16,7 +16,6 @@
           <div class="item-2" id="mainText">PID Tuner Training Module</div>
           <a href="index.html" class="item-2" id="homeButton">Home</a>
           <a href="manual.html" class="item-2" id="manualButton">Manual</a>
-          <a href="auto.html" class="item-2" id="autoButton">Auto</a>
           <a href="zeigler.html" class="item-2" id="zeiglerButton" style="background-color: #6956e5; color: white;">Zeigler-Nichols</a>
         </div>
       </div>
@@ -47,7 +46,13 @@
             </div>
           </div>
 
-          
+          <div class="tuning-options">
+            <label for="setpointSelect">Tuning Setpoint:</label>
+            <select id="setpointSelect">
+                <option value="90">90 Degrees</option>
+                <option value="45">45 Degrees</option>
+            </select>
+        </div>
 
           <button id="start_tuning" style="width: 20vw; height: 8vh; background-color: #61da71; border: none; border-radius: 12px; font-weight: 800; cursor: pointer; margin-top: 10px;">START AUTO-TUNE</button>
         </div>

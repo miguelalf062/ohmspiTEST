@@ -276,24 +276,31 @@ io.on('connection', (socket) => {
   console.log('Frontend connected:', socket.id);
   znClient = socket;
 
-  socket.on('start-zn', async () => {
+  socket.on('start-zn', async (data) => {
     console.log('Starting ZN sequence...');
+    console.log(`Setpoint: ${data.setpoint}`);
     doZiegler = true;
     currentKp = 0.1; // Start low
     startValue = null;
     peaks = [];
     troughs = [];
-    
+    const setpoint = data.setpoint || 90;
     // Increment Kp until oscillation is found or max reached
     while (doZiegler && currentKp <= 20) {
-      await sendKpToEsp32(currentKp, 0, 0, 90);
+      await sendKpToEsp32(currentKp, 0, 0, setpoint);
       io.emit("kp-climb", { currentKp: currentKp.toFixed(2) });
       console.log(`Testing Kp: ${currentKp.toFixed(2)}`);
       
       // WAIT: 2 seconds gives the propeller time to spin up and move
       await new Promise(r => setTimeout(r, 2000)); 
       
-      if (doZiegler) currentKp += 0.2; // Step size
+      if (doZiegler) {
+            currentKp += 0.2; // kp step size
+      } else {
+            console.log("Loop terminated: Oscillation detected.");
+      } 
+
+      
     }
   });
 
